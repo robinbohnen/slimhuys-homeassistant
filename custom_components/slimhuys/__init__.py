@@ -129,11 +129,15 @@ def _maybe_start_p1_push(hass: HomeAssistant, entry: ConfigEntry) -> None:
     Werkt alleen als de user in de config-flow auto-push heeft aangezet en
     sensors heeft gekoppeld. Faalt stil als sensors niet bestaan.
     """
-    enabled = entry.data.get(CONF_P1_ENABLED, False)
-    consumption = entry.data.get(CONF_P1_CONSUMPTION)
-    delivery = entry.data.get(CONF_P1_DELIVERY)
-    power = entry.data.get(CONF_P1_POWER)
-    interval = int(entry.data.get(CONF_P1_INTERVAL, DEFAULT_P1_INTERVAL))
+    # Options (van OptionsFlow) wint van data (van originele setup).
+    def _get(key, default=None):
+        return entry.options.get(key, entry.data.get(key, default))
+
+    enabled = _get(CONF_P1_ENABLED, False)
+    consumption = _get(CONF_P1_CONSUMPTION)
+    delivery = _get(CONF_P1_DELIVERY)
+    power = _get(CONF_P1_POWER)
+    interval = int(_get(CONF_P1_INTERVAL, DEFAULT_P1_INTERVAL))
 
     if not (enabled and consumption and delivery and power):
         return

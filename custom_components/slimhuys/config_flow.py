@@ -177,65 +177,68 @@ class SlimHuysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
-        return SlimHuysOptionsFlow(config_entry)
+        return SlimHuysOptionsFlow()
 
 
 class SlimHuysOptionsFlow(config_entries.OptionsFlow):
-    """Wijzig leverancier + P1-koppeling achteraf."""
+    """Wijzig leverancier + P1-koppeling achteraf.
 
-    def __init__(self, config_entry) -> None:
-        self.config_entry = config_entry
+    HA 2024.12+ stelt self.config_entry automatisch in — geen __init__
+    nodig (en de oude pattern conflicteert met de nieuwe property).
+    """
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         if user_input is not None:
+            # Slechts de relevante keys in options bewaren — de api_key
+            # en base_url blijven in entry.data.
             return self.async_create_entry(title="", data=user_input)
 
-        session = async_get_clientsession(self.hass)
-        client = SlimHuysClient(session, self.config_entry.data[CONF_BASE_URL])
+        entry = self.config_entry
+
+        # Suppliers ophalen — als API onbereikbaar, sane fallback.
         try:
+            session = async_get_clientsession(self.hass)
+            client = SlimHuysClient(session, entry.data.get(CONF_BASE_URL, "https://api.slimhuys.nl"))
             suppliers = await client.suppliers()
-        except SlimHuysApiError:
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("OptionsFlow kon suppliers niet laden: %s", err)
             suppliers = []
 
         choices = {s["id"]: s["name"] for s in suppliers if s.get("active", True)} or {
             DEFAULT_SUPPLIER: "Frank Energie"
         }
-        current = self.config_entry.options.get(
-            CONF_SUPPLIER, self.config_entry.data.get(CONF_SUPPLIER, DEFAULT_SUPPLIER)
-        )
+
+        # Huidige instellingen — eerst options, dan data, dan default.
+        def get(key, default=None):
+            return entry.options.get(key, entry.data.get(key, default))
+
+        current_supplier = get(CONF_SUPPLIER, DEFAULT_SUPPLIER)
+        current_p1_enabled = bool(get(CONF_P1_ENABLED, False))
+        current_p1_consumption = get(CONF_P1_CONSUMPTION)
+        current_p1_delivery = get(CONF_P1_DELIVERY)
+        current_p1_power = get(CONF_P1_POWER)
+        current_p1_interval = int(get(CONF_P1_INTERVAL, DEFAULT_P1_INTERVAL))
 
         all_sensors = _all_sensors(self.hass)
         sensor_choices = {s: s for s in all_sensors}
-        current_p1 = {
-            CONF_P1_ENABLED: self.config_entry.data.get(CONF_P1_ENABLED, False),
-            CONF_P1_CONSUMPTION: self.config_entry.data.get(CONF_P1_CONSUMPTION),
-            CONF_P1_DELIVERY: self.config_entry.data.get(CONF_P1_DELIVERY),
-            CONF_P1_POWER: self.config_entry.data.get(CONF_P1_POWER),
-            CONF_P1_INTERVAL: self.config_entry.data.get(CONF_P1_INTERVAL, DEFAULT_P1_INTERVAL),
-        }
+
+        # Dropdowns krijgen alleen een default als de huidige sensor nog
+        # bestaat; anders vol.UNDEFINED zodat de form gewoon opent.
+        def safe_default(value):
+            return value if value in sensor_choices else vol.UNDEFINED
 
         schema_dict: dict[Any, Any] = {
-            vol.Required(CONF_SUPPLIER, default=current): vol.In(choices),
-            vol.Required(CONF_P1_ENABLED, default=current_p1[CONF_P1_ENABLED]): bool,
+            vol.Required(CONF_SUPPLIER, default=current_supplier): vol.In(choices),
+            vol.Required(CONF_P1_ENABLED, default=current_p1_enabled): bool,
         }
         if sensor_choices:
             schema_dict.update({
-                vol.Optional(
-                    CONF_P1_CONSUMPTION,
-                    default=current_p1[CONF_P1_CONSUMPTION] or vol.UNDEFINED,
-                ): vol.In(sensor_choices),
-                vol.Optional(
-                    CONF_P1_DELIVERY,
-                    default=current_p1[CONF_P1_DELIVERY] or vol.UNDEFINED,
-                ): vol.In(sensor_choices),
-                vol.Optional(
-                    CONF_P1_POWER,
-                    default=current_p1[CONF_P1_POWER] or vol.UNDEFINED,
-                ): vol.In(sensor_choices),
-                vol.Optional(
-                    CONF_P1_INTERVAL,
-                    default=current_p1[CONF_P1_INTERVAL],
-                ): vol.All(vol.Coerce(int), vol.Range(min=10, max=300)),
+                vol.Optional(CONF_P1_CONSUMPTION, default=safe_default(current_p1_consumption)): vol.In(sensor_choices),
+                vol.Optional(CONF_P1_DELIVERY, default=safe_default(current_p1_delivery)): vol.In(sensor_choices),
+                vol.Optional(CONF_P1_POWER, default=safe_default(current_p1_power)): vol.In(sensor_choices),
+                vol.Optional(CONF_P1_INTERVAL, default=current_p1_interval): vol.All(
+                    vol.Coerce(int), vol.Range(min=10, max=300)
+                ),
             })
 
         return self.async_show_form(
