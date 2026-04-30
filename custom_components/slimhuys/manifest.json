@@ -1,0 +1,12 @@
+{
+  "domain": "slimhuys",
+  "name": "SlimHuys",
+  "version": "0.1.0",
+  "documentation": "https://github.com/robinbohnen/slimhuys-homeassistant",
+  "issue_tracker": "https://github.com/robinbohnen/slimhuys-homeassistant/issues",
+  "codeowners": ["@robinbohnen"],
+  "config_flow": true,
+  "iot_class": "cloud_polling",
+  "integration_type": "service",
+  "requirements": []
+}

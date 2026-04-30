@@ -1,0 +1,65 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "SlimHuys",
+        "description": "Vul je SlimHuys API-key in. Je vindt 'm op {docs_url}.",
+        "data": {
+          "api_key": "API-key",
+          "base_url": "API basis-URL"
+        }
+      },
+      "supplier": {
+        "title": "Kies leverancier",
+        "description": "Welke leverancier moet als referentie gebruikt worden voor de prijs-sensors?",
+        "data": {
+          "supplier": "Leverancier"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "API-key is ongeldig of ingetrokken.",
+      "cannot_connect": "Kan SlimHuys niet bereiken — controleer de basis-URL en je internet."
+    },
+    "abort": {
+      "already_configured": "SlimHuys is al gekoppeld voor dit account."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SlimHuys-instellingen",
+        "data": {
+          "supplier": "Leverancier"
+        }
+      }
+    }
+  },
+  "services": {
+    "push_reading": {
+      "name": "P1-meting pushen",
+      "description": "Stuur een momentopname van je P1/DSMR-meter naar SlimHuys.",
+      "fields": {
+        "consumption_kwh_total": {
+          "name": "Verbruik totaal (kWh)",
+          "description": "Cumulatieve meterstand verbruik."
+        },
+        "delivered_kwh_total": {
+          "name": "Teruglevering totaal (kWh)",
+          "description": "Cumulatieve meterstand teruglevering."
+        },
+        "active_power_w": {
+          "name": "Huidig vermogen (W)",
+          "description": "Positief = verbruik, negatief = teruglevering."
+        },
+        "active_power_returned_w": {
+          "name": "Teruglevering vermogen (W)"
+        },
+        "voltage_l1": {"name": "Spanning L1 (V)"},
+        "current_l1_a": {"name": "Stroom L1 (A)"},
+        "tariff_indicator": {"name": "Tarief-indicator (1=laag, 2=normaal)"},
+        "timestamp": {"name": "Tijdstip (ISO 8601, optioneel)"}
+      }
+    }
+  }
+}

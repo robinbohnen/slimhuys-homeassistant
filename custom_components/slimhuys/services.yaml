@@ -1,0 +1,55 @@
+push_reading:
+  name: P1-meting pushen
+  description: Stuur een momentopname van je P1/DSMR-meter naar SlimHuys.
+  fields:
+    consumption_kwh_total:
+      name: Verbruik totaal (kWh)
+      description: Cumulatieve meterstand verbruik.
+      required: true
+      example: "12847.302"
+      selector:
+        number: { mode: box, step: 0.001 }
+    delivered_kwh_total:
+      name: Teruglevering totaal (kWh)
+      required: true
+      example: "3184.105"
+      selector:
+        number: { mode: box, step: 0.001 }
+    active_power_w:
+      name: Huidig vermogen (W)
+      description: Positief = verbruik, negatief = teruglevering.
+      required: true
+      example: "847"
+      selector:
+        number: { mode: box, step: 1 }
+    active_power_returned_w:
+      name: Teruglevering vermogen (W)
+      required: false
+      default: 0
+      selector:
+        number: { mode: box, step: 1 }
+    voltage_l1:
+      name: Spanning L1 (V)
+      required: false
+      selector:
+        number: { mode: box, step: 0.1 }
+    current_l1_a:
+      name: Stroom L1 (A)
+      required: false
+      selector:
+        number: { mode: box, step: 0.01 }
+    tariff_indicator:
+      name: Tarief-indicator
+      description: 1 = laag tarief, 2 = normaal tarief
+      required: false
+      selector:
+        select:
+          options:
+            - { value: 1, label: "Laag tarief" }
+            - { value: 2, label: "Normaal tarief" }
+    timestamp:
+      name: Tijdstip
+      description: ISO 8601 — leeg = nu.
+      required: false
+      selector:
+        text: {}
