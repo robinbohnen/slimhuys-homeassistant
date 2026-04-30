@@ -18,11 +18,11 @@
       },
       "p1_link": {
         "title": "Link your P1 meter",
-        "description": "We detected {detected} possible DSMR sensors in Home Assistant. Pick which ones to push to SlimHuys.",
+        "description": "Found {energy_count} kWh-sensors and {power_count} W-sensors. Cumulative readings (kWh) and current power (W/kW) are filtered to relevant choices only.",
         "data": {
           "p1_enabled": "Automatically push DSMR data to SlimHuys",
-          "p1_consumption_sensor": "Total consumption (kWh)",
-          "p1_delivery_sensor": "Total delivery (kWh)",
+          "p1_consumption_sensor": "Total consumption (kWh, cumulative)",
+          "p1_delivery_sensor": "Total delivery (kWh, cumulative)",
           "p1_power_sensor": "Current power (W or kW)",
           "p1_interval_seconds": "Push interval (seconds)"
         }

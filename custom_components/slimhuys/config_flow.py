@@ -29,32 +29,51 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _detect_dsmr_sensors(hass) -> dict[str, list[str]]:
-    """Scan HA-state for sensors die er als DSMR/P1 uitzien.
-
-    Returnt drie suggestie-lijsten (op naam-pattern) die we als default
-    in de dropdowns gebruiken; de user kan zelf elke andere sensor kiezen.
-    """
+    """Naam-patroon-suggesties voor de drie defaults in de dropdowns."""
     consumption: list[str] = []
     delivery: list[str] = []
     power: list[str] = []
 
     for state in hass.states.async_all("sensor"):
         eid = state.entity_id.lower()
-        # Cumulatieve verbruik-sensors
-        if any(p in eid for p in ["consumption_total", "energy_import", "_import_total", "imported_energy"]):
+        if any(p in eid for p in [
+            "consumption_total", "energy_import", "_import_total", "imported_energy",
+            "stroom_verbruik_totaal", "verbruik_totaal", "_consumption", "_import",
+        ]):
             consumption.append(state.entity_id)
-        # Cumulatieve teruglevering-sensors
-        elif any(p in eid for p in ["delivery_total", "energy_export", "_export_total", "exported_energy"]):
+        elif any(p in eid for p in [
+            "delivery_total", "energy_export", "_export_total", "exported_energy",
+            "_teruglevering_totaal", "teruglevering_totaal", "_delivery", "_export",
+        ]):
             delivery.append(state.entity_id)
-        # Realtime vermogen-sensors
-        elif any(p in eid for p in ["current_electricity_usage", "active_power", "current_power"]):
+        elif any(p in eid for p in [
+            "current_electricity_usage", "active_power", "current_power",
+            "vermogen_nu", "current_consumption_w",
+        ]):
             power.append(state.entity_id)
 
     return {"consumption": consumption, "delivery": delivery, "power": power}
 
 
-def _all_sensors(hass) -> list[str]:
-    return sorted(s.entity_id for s in hass.states.async_all("sensor"))
+def _energy_sensors(hass) -> list[str]:
+    """Sensors met unit kWh — voor cumulatief verbruik / teruglevering."""
+    out = []
+    for state in hass.states.async_all("sensor"):
+        unit = (state.attributes.get("unit_of_measurement") or "").lower()
+        if unit == "kwh":
+            out.append(state.entity_id)
+    return sorted(out)
+
+
+def _power_sensors(hass) -> list[str]:
+    """Sensors met unit W / kW — voor huidig vermogen."""
+    out = []
+    for state in hass.states.async_all("sensor"):
+        unit = (state.attributes.get("unit_of_measurement") or "").lower()
+        device_class = (state.attributes.get("device_class") or "").lower()
+        if unit in ("w", "kw") or device_class == "power":
+            out.append(state.entity_id)
+    return sorted(out)
 
 
 class SlimHuysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -145,22 +164,30 @@ class SlimHuysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         suggestions = _detect_dsmr_sensors(self.hass)
-        all_sensors = _all_sensors(self.hass)
-        sensor_choices = {s: s for s in all_sensors}
+        energy_sensors = _energy_sensors(self.hass)
+        power_sensors = _power_sensors(self.hass)
 
-        # Defaults: 1e detected sensor uit elke categorie (of niets)
-        default_consumption = suggestions["consumption"][0] if suggestions["consumption"] else None
-        default_delivery = suggestions["delivery"][0] if suggestions["delivery"] else None
-        default_power = suggestions["power"][0] if suggestions["power"] else None
+        energy_choices = {s: s for s in energy_sensors}
+        power_choices = {s: s for s in power_sensors}
+
+        default_consumption = next(
+            (s for s in suggestions["consumption"] if s in energy_sensors), None
+        ) or (energy_sensors[0] if energy_sensors else None)
+        default_delivery = next(
+            (s for s in suggestions["delivery"] if s in energy_sensors), None
+        ) or (energy_sensors[1] if len(energy_sensors) > 1 else None)
+        default_power = next(
+            (s for s in suggestions["power"] if s in power_sensors), None
+        ) or (power_sensors[0] if power_sensors else None)
 
         schema_dict: dict[Any, Any] = {
             vol.Required(CONF_P1_ENABLED, default=bool(default_consumption)): bool,
         }
-        if sensor_choices:
+        if energy_choices and power_choices:
             schema_dict.update({
-                vol.Optional(CONF_P1_CONSUMPTION, default=default_consumption or vol.UNDEFINED): vol.In(sensor_choices),
-                vol.Optional(CONF_P1_DELIVERY, default=default_delivery or vol.UNDEFINED): vol.In(sensor_choices),
-                vol.Optional(CONF_P1_POWER, default=default_power or vol.UNDEFINED): vol.In(sensor_choices),
+                vol.Optional(CONF_P1_CONSUMPTION, default=default_consumption or vol.UNDEFINED): vol.In(energy_choices),
+                vol.Optional(CONF_P1_DELIVERY, default=default_delivery or vol.UNDEFINED): vol.In(energy_choices),
+                vol.Optional(CONF_P1_POWER, default=default_power or vol.UNDEFINED): vol.In(power_choices),
                 vol.Optional(CONF_P1_INTERVAL, default=DEFAULT_P1_INTERVAL): vol.All(
                     vol.Coerce(int), vol.Range(min=10, max=300)
                 ),
@@ -170,7 +197,8 @@ class SlimHuysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="p1_link",
             data_schema=vol.Schema(schema_dict),
             description_placeholders={
-                "detected": str(len(suggestions["consumption"]) + len(suggestions["delivery"]) + len(suggestions["power"]))
+                "energy_count": str(len(energy_sensors)),
+                "power_count": str(len(power_sensors)),
             },
         )
 
@@ -219,23 +247,25 @@ class SlimHuysOptionsFlow(config_entries.OptionsFlow):
         current_p1_power = get(CONF_P1_POWER)
         current_p1_interval = int(get(CONF_P1_INTERVAL, DEFAULT_P1_INTERVAL))
 
-        all_sensors = _all_sensors(self.hass)
-        sensor_choices = {s: s for s in all_sensors}
+        energy_sensors = _energy_sensors(self.hass)
+        power_sensors = _power_sensors(self.hass)
+        energy_choices = {s: s for s in energy_sensors}
+        power_choices = {s: s for s in power_sensors}
 
         # Dropdowns krijgen alleen een default als de huidige sensor nog
         # bestaat; anders vol.UNDEFINED zodat de form gewoon opent.
-        def safe_default(value):
-            return value if value in sensor_choices else vol.UNDEFINED
+        def safe_default(value, choices):
+            return value if value in choices else vol.UNDEFINED
 
         schema_dict: dict[Any, Any] = {
             vol.Required(CONF_SUPPLIER, default=current_supplier): vol.In(choices),
             vol.Required(CONF_P1_ENABLED, default=current_p1_enabled): bool,
         }
-        if sensor_choices:
+        if energy_choices and power_choices:
             schema_dict.update({
-                vol.Optional(CONF_P1_CONSUMPTION, default=safe_default(current_p1_consumption)): vol.In(sensor_choices),
-                vol.Optional(CONF_P1_DELIVERY, default=safe_default(current_p1_delivery)): vol.In(sensor_choices),
-                vol.Optional(CONF_P1_POWER, default=safe_default(current_p1_power)): vol.In(sensor_choices),
+                vol.Optional(CONF_P1_CONSUMPTION, default=safe_default(current_p1_consumption, energy_choices)): vol.In(energy_choices),
+                vol.Optional(CONF_P1_DELIVERY, default=safe_default(current_p1_delivery, energy_choices)): vol.In(energy_choices),
+                vol.Optional(CONF_P1_POWER, default=safe_default(current_p1_power, power_choices)): vol.In(power_choices),
                 vol.Optional(CONF_P1_INTERVAL, default=current_p1_interval): vol.All(
                     vol.Coerce(int), vol.Range(min=10, max=300)
                 ),
