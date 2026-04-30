@@ -48,32 +48,27 @@ data:
 Kopieer `custom_components/slimhuys/` naar je HA `config/custom_components/`-folder
 en restart HA.
 
-## P1/DSMR-meter pushen
+## P1/DSMR-meter pushen — geen YAML nodig
 
-Voorbeeld-automation die elke 30 seconden je DSMR-stand naar SlimHuys stuurt:
+Tijdens **Add Integration** ziet de wizard 3 stappen: API-key → leverancier →
+**P1-koppeling**. In de laatste stap detecteert de integratie automatisch
+mogelijke DSMR-sensors en biedt 3 dropdowns aan:
 
-```yaml
-automation:
-  - alias: "SlimHuys P1 push"
-    trigger:
-      - platform: time_pattern
-        seconds: "/30"
-    action:
-      - service: slimhuys.push_reading
-        data:
-          consumption_kwh_total: >
-            {{ states('sensor.dsmr_reading_electricity_consumption_total') | float(0) }}
-          delivered_kwh_total: >
-            {{ states('sensor.dsmr_reading_electricity_delivery_total') | float(0) }}
-          active_power_w: >
-            {{ (states('sensor.dsmr_reading_current_electricity_usage') | float(0) * 1000) | int }}
-```
+- Cumulatief verbruik (kWh)
+- Cumulatieve teruglevering (kWh)
+- Huidig vermogen (W of kW — wordt automatisch geconverteerd)
 
-Pas de sensor-namen aan op jouw DSMR/P1-integratie. Mogelijke bronnen:
+Plus een push-interval (10–300 seconden, default 30s). De integratie pusht
+zelf je waardes naar SlimHuys — je hoeft geen automation te schrijven.
+
+Werkt out-of-the-box met:
 
 - **DSMR Slimme meter** (P1-poort via USB): `sensor.dsmr_reading_*`
 - **HomeWizard P1-meter**: `sensor.p1_meter_*`
 - **Tibber Pulse**: `sensor.tibber_*`
+
+Wil je toch zelf via een automation pushen? De service `slimhuys.push_reading`
+blijft beschikbaar voor maatwerk.
 
 ## Configuratie wijzigen
 

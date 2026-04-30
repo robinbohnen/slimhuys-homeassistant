@@ -6,7 +6,6 @@ import logging
 from typing import Any
 
 import aiohttp
-import async_timeout
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ class SlimHuysClient:
     ) -> Any:
         url = f"{self._base_url}{path}"
         try:
-            async with async_timeout.timeout(15):
+            async with asyncio.timeout(15):
                 async with self._session.request(
                     method,
                     url,
@@ -69,7 +68,7 @@ class SlimHuysClient:
                     if not text:
                         return None
                     return await resp.json(content_type=None)
-        except asyncio.TimeoutError as err:
+        except (asyncio.TimeoutError, TimeoutError) as err:
             raise SlimHuysApiError("timeout") from err
         except aiohttp.ClientError as err:
             raise SlimHuysApiError(f"transport: {err}") from err

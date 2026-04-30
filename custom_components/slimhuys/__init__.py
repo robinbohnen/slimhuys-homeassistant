@@ -1,8 +1,9 @@
 """SlimHuys integration entrypoint."""
 from __future__ import annotations
 
+import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import voluptuous as vol
@@ -11,13 +12,20 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.event import async_track_time_interval
 
 from .api import SlimHuysApiError, SlimHuysClient
 from .const import (
     CONF_API_KEY,
     CONF_BASE_URL,
+    CONF_P1_CONSUMPTION,
+    CONF_P1_DELIVERY,
+    CONF_P1_ENABLED,
+    CONF_P1_INTERVAL,
+    CONF_P1_POWER,
     CONF_SUPPLIER,
     DEFAULT_BASE_URL,
+    DEFAULT_P1_INTERVAL,
     DEFAULT_SUPPLIER,
     DOMAIN,
     SERVICE_PUSH_READING,
@@ -43,7 +51,6 @@ PUSH_READING_SCHEMA = vol.Schema(
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up SlimHuys from a config entry."""
     session = async_get_clientsession(hass)
 
     base_url = entry.data.get(CONF_BASE_URL, DEFAULT_BASE_URL)
@@ -59,17 +66,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "client": client,
         "coordinator": coordinator,
         "supplier": supplier,
+        "p1_unsub": None,
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
 
-    # Service is per-installation; we register once on the first entry.
+    # P1-auto-push: registreer een interval-listener op de gekozen sensors
+    _maybe_start_p1_push(hass, entry)
+
+    # Service push_reading: voor users die liever zelf via automation pushen
     if not hass.services.has_service(DOMAIN, SERVICE_PUSH_READING):
         async def _push_reading(call: ServiceCall) -> None:
             data = PUSH_READING_SCHEMA(dict(call.data))
             payload = {
-                "timestamp": data.get("timestamp") or datetime.now().astimezone().isoformat(),
+                "timestamp": data.get("timestamp") or _now_iso(),
                 "consumption_kwh_total": data["consumption_kwh_total"],
                 "delivered_kwh_total": data["delivered_kwh_total"],
                 "active_power_w": data["active_power_w"],
@@ -79,7 +90,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 if opt in data:
                     payload[opt] = data[opt]
 
-            # Pak de eerste configured entry — meeste users hebben er één.
             entries = list(hass.data[DOMAIN].values())
             if not entries:
                 raise HomeAssistantError("No SlimHuys integration configured")
@@ -97,6 +107,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    state = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
+    if state.get("p1_unsub"):
+        state["p1_unsub"]()
+
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
@@ -106,5 +120,70 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload integration wanneer leverancier wijzigt via OptionsFlow."""
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+def _maybe_start_p1_push(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Start een interval-task die de huidige DSMR-states naar SlimHuys pusht.
+
+    Werkt alleen als de user in de config-flow auto-push heeft aangezet en
+    sensors heeft gekoppeld. Faalt stil als sensors niet bestaan.
+    """
+    enabled = entry.data.get(CONF_P1_ENABLED, False)
+    consumption = entry.data.get(CONF_P1_CONSUMPTION)
+    delivery = entry.data.get(CONF_P1_DELIVERY)
+    power = entry.data.get(CONF_P1_POWER)
+    interval = int(entry.data.get(CONF_P1_INTERVAL, DEFAULT_P1_INTERVAL))
+
+    if not (enabled and consumption and delivery and power):
+        return
+
+    state = hass.data[DOMAIN][entry.entry_id]
+    client: SlimHuysClient = state["client"]
+
+    async def _tick(now=None) -> None:
+        try:
+            cs = hass.states.get(consumption)
+            ds = hass.states.get(delivery)
+            ps = hass.states.get(power)
+            if not (cs and ds and ps):
+                return
+            if cs.state in ("unknown", "unavailable") or ds.state in ("unknown", "unavailable") or ps.state in ("unknown", "unavailable"):
+                return
+
+            # Power-sensor kan W of kW zijn — detecteer via unit
+            unit = (ps.attributes.get("unit_of_measurement") or "").lower()
+            try:
+                p_value = float(ps.state)
+            except ValueError:
+                return
+            if unit in ("kw", "kilowatt"):
+                p_value = p_value * 1000
+
+            try:
+                payload = {
+                    "timestamp": _now_iso(),
+                    "consumption_kwh_total": float(cs.state),
+                    "delivered_kwh_total": float(ds.state),
+                    "active_power_w": int(round(p_value)),
+                    "active_power_returned_w": 0,
+                }
+            except (ValueError, TypeError):
+                return
+
+            await client.push_readings([payload])
+        except SlimHuysApiError as err:
+            _LOGGER.debug("SlimHuys auto-push faalde (silent): %s", err)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Onverwachte fout in P1-push: %s", err)
+
+    state["p1_unsub"] = async_track_time_interval(hass, _tick, _interval_timedelta(interval))
+
+
+def _interval_timedelta(seconds: int):
+    from datetime import timedelta
+    return timedelta(seconds=max(10, min(300, seconds)))
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
