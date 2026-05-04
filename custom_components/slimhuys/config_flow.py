@@ -189,7 +189,7 @@ class SlimHuysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_P1_DELIVERY, default=default_delivery or vol.UNDEFINED): vol.In(energy_choices),
                 vol.Optional(CONF_P1_POWER, default=default_power or vol.UNDEFINED): vol.In(power_choices),
                 vol.Optional(CONF_P1_INTERVAL, default=DEFAULT_P1_INTERVAL): vol.All(
-                    vol.Coerce(int), vol.Range(min=10, max=300)
+                    vol.Coerce(int), vol.Range(min=1, max=300)
                 ),
             })
 
@@ -267,7 +267,7 @@ class SlimHuysOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_P1_DELIVERY, default=safe_default(current_p1_delivery, energy_choices)): vol.In(energy_choices),
                 vol.Optional(CONF_P1_POWER, default=safe_default(current_p1_power, power_choices)): vol.In(power_choices),
                 vol.Optional(CONF_P1_INTERVAL, default=current_p1_interval): vol.All(
-                    vol.Coerce(int), vol.Range(min=10, max=300)
+                    vol.Coerce(int), vol.Range(min=1, max=300)
                 ),
             })
 

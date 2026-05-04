@@ -186,7 +186,9 @@ def _maybe_start_p1_push(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 def _interval_timedelta(seconds: int):
     from datetime import timedelta
-    return timedelta(seconds=max(10, min(300, seconds)))
+    # 1s minimum: DSMR-meters publiceren naturally elke ~1s. Backend rate-limit
+    # is 600/min per API-key (= 10/s) dus 1Hz uit één instance is comfortabel.
+    return timedelta(seconds=max(1, min(300, seconds)))
 
 
 def _now_iso() -> str:

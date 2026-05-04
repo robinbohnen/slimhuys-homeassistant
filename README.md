@@ -36,7 +36,7 @@ data:
 ### Via HACS (aanbevolen)
 
 1. Open HACS → 3-puntjes menu → **Custom repositories**
-2. URL: `https://github.com/robinbohnen/slimhuys-homeassistant`
+2. URL: `https://github.com/SlimHuys/slimhuys-homeassistant`
 3. Categorie: **Integration**
 4. **Add** → zoek "SlimHuys" → **Download**
 5. Restart Home Assistant
@@ -58,8 +58,13 @@ mogelijke DSMR-sensors en biedt 3 dropdowns aan:
 - Cumulatieve teruglevering (kWh)
 - Huidig vermogen (W of kW — wordt automatisch geconverteerd)
 
-Plus een push-interval (10–300 seconden, default 30s). De integratie pusht
+Plus een push-interval (1–300 seconden, default 30s). De integratie pusht
 zelf je waardes naar SlimHuys — je hoeft geen automation te schrijven.
+
+> **1-seconde push** is sinds v0.2.0 mogelijk. DSMR-meters publiceren naturally
+> elke ~1s; de SlimHuys-API rate-limit is 600/min/key (= 10/s) dus 1Hz uit één
+> instance is comfortabel. Aan te raden voor live-dashboard-feel; voor
+> energie-tracking is 30s ruim genoeg.
 
 Werkt out-of-the-box met:
 

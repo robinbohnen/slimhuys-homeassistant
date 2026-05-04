@@ -7,6 +7,8 @@ from typing import Any
 
 import aiohttp
 
+from .const import VERSION
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -35,7 +37,7 @@ class SlimHuysClient:
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "User-Agent": "slimhuys-ha/0.1.0",
+            "User-Agent": f"slimhuys-ha/{VERSION}",
         }
         if with_auth and self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"
