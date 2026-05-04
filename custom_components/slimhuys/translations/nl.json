@@ -31,9 +31,12 @@
           "p1_current_l1_sensor": "Stroom L1 (A, optioneel)",
           "p1_current_l2_sensor": "Stroom L2 (A, optioneel)",
           "p1_current_l3_sensor": "Stroom L3 (A, optioneel)",
-          "p1_power_l1_sensor": "Vermogen L1 (W, optioneel)",
-          "p1_power_l2_sensor": "Vermogen L2 (W, optioneel)",
-          "p1_power_l3_sensor": "Vermogen L3 (W, optioneel)",
+          "p1_power_l1_sensor": "Vermogen L1 verbruik (+P, W, optioneel)",
+          "p1_power_l2_sensor": "Vermogen L2 verbruik (+P, W, optioneel)",
+          "p1_power_l3_sensor": "Vermogen L3 verbruik (+P, W, optioneel)",
+          "p1_power_returned_l1_sensor": "Vermogen L1 teruglevering (-P, W, optioneel)",
+          "p1_power_returned_l2_sensor": "Vermogen L2 teruglevering (-P, W, optioneel)",
+          "p1_power_returned_l3_sensor": "Vermogen L3 teruglevering (-P, W, optioneel)",
           "p1_gas_sensor": "Gas (m³ totaalstand, optioneel)"
         }
       }
@@ -63,9 +66,12 @@
           "p1_current_l1_sensor": "Stroom L1 (A, optioneel)",
           "p1_current_l2_sensor": "Stroom L2 (A, optioneel)",
           "p1_current_l3_sensor": "Stroom L3 (A, optioneel)",
-          "p1_power_l1_sensor": "Vermogen L1 (W, optioneel)",
-          "p1_power_l2_sensor": "Vermogen L2 (W, optioneel)",
-          "p1_power_l3_sensor": "Vermogen L3 (W, optioneel)",
+          "p1_power_l1_sensor": "Vermogen L1 verbruik (+P, W, optioneel)",
+          "p1_power_l2_sensor": "Vermogen L2 verbruik (+P, W, optioneel)",
+          "p1_power_l3_sensor": "Vermogen L3 verbruik (+P, W, optioneel)",
+          "p1_power_returned_l1_sensor": "Vermogen L1 teruglevering (-P, W, optioneel)",
+          "p1_power_returned_l2_sensor": "Vermogen L2 teruglevering (-P, W, optioneel)",
+          "p1_power_returned_l3_sensor": "Vermogen L3 teruglevering (-P, W, optioneel)",
           "p1_gas_sensor": "Gas (m³ totaalstand, optioneel)"
         }
       }
@@ -97,9 +103,12 @@
         "current_l1_a": {"name": "Stroom L1 (A)"},
         "current_l2_a": {"name": "Stroom L2 (A)"},
         "current_l3_a": {"name": "Stroom L3 (A)"},
-        "active_power_l1_w": {"name": "Vermogen L1 (W)"},
-        "active_power_l2_w": {"name": "Vermogen L2 (W)"},
-        "active_power_l3_w": {"name": "Vermogen L3 (W)"},
+        "active_power_l1_w": {"name": "Vermogen L1 verbruik +P (W)"},
+        "active_power_l2_w": {"name": "Vermogen L2 verbruik +P (W)"},
+        "active_power_l3_w": {"name": "Vermogen L3 verbruik +P (W)"},
+        "active_power_returned_l1_w": {"name": "Vermogen L1 teruglevering -P (W)"},
+        "active_power_returned_l2_w": {"name": "Vermogen L2 teruglevering -P (W)"},
+        "active_power_returned_l3_w": {"name": "Vermogen L3 teruglevering -P (W)"},
         "gas_total_m3": {"name": "Gas totaalstand (m³)"},
         "tariff_indicator": {
           "name": "Tarief-indicator (1=laag, 2=normaal)"

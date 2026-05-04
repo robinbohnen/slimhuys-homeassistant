@@ -31,9 +31,12 @@
           "p1_current_l1_sensor": "Current L1 (A, optional)",
           "p1_current_l2_sensor": "Current L2 (A, optional)",
           "p1_current_l3_sensor": "Current L3 (A, optional)",
-          "p1_power_l1_sensor": "Power L1 (W, optional)",
-          "p1_power_l2_sensor": "Power L2 (W, optional)",
-          "p1_power_l3_sensor": "Power L3 (W, optional)",
+          "p1_power_l1_sensor": "Power L1 consumed (+P, W, optional)",
+          "p1_power_l2_sensor": "Power L2 consumed (+P, W, optional)",
+          "p1_power_l3_sensor": "Power L3 consumed (+P, W, optional)",
+          "p1_power_returned_l1_sensor": "Power L1 returned (-P, W, optional)",
+          "p1_power_returned_l2_sensor": "Power L2 returned (-P, W, optional)",
+          "p1_power_returned_l3_sensor": "Power L3 returned (-P, W, optional)",
           "p1_gas_sensor": "Gas (m³ cumulative, optional)"
         }
       }
@@ -63,9 +66,12 @@
           "p1_current_l1_sensor": "Current L1 (A, optional)",
           "p1_current_l2_sensor": "Current L2 (A, optional)",
           "p1_current_l3_sensor": "Current L3 (A, optional)",
-          "p1_power_l1_sensor": "Power L1 (W, optional)",
-          "p1_power_l2_sensor": "Power L2 (W, optional)",
-          "p1_power_l3_sensor": "Power L3 (W, optional)",
+          "p1_power_l1_sensor": "Power L1 consumed (+P, W, optional)",
+          "p1_power_l2_sensor": "Power L2 consumed (+P, W, optional)",
+          "p1_power_l3_sensor": "Power L3 consumed (+P, W, optional)",
+          "p1_power_returned_l1_sensor": "Power L1 returned (-P, W, optional)",
+          "p1_power_returned_l2_sensor": "Power L2 returned (-P, W, optional)",
+          "p1_power_returned_l3_sensor": "Power L3 returned (-P, W, optional)",
           "p1_gas_sensor": "Gas (m³ cumulative, optional)"
         }
       }
@@ -86,9 +92,12 @@
         "current_l1_a": {"name": "Current L1 (A)"},
         "current_l2_a": {"name": "Current L2 (A)"},
         "current_l3_a": {"name": "Current L3 (A)"},
-        "active_power_l1_w": {"name": "Power L1 (W)"},
-        "active_power_l2_w": {"name": "Power L2 (W)"},
-        "active_power_l3_w": {"name": "Power L3 (W)"},
+        "active_power_l1_w": {"name": "Power L1 consumed +P (W)"},
+        "active_power_l2_w": {"name": "Power L2 consumed +P (W)"},
+        "active_power_l3_w": {"name": "Power L3 consumed +P (W)"},
+        "active_power_returned_l1_w": {"name": "Power L1 returned -P (W)"},
+        "active_power_returned_l2_w": {"name": "Power L2 returned -P (W)"},
+        "active_power_returned_l3_w": {"name": "Power L3 returned -P (W)"},
         "gas_total_m3": {"name": "Gas total (m³)"},
         "tariff_indicator": {"name": "Tariff indicator (1=low, 2=normal)"},
         "timestamp": {"name": "Timestamp (ISO 8601, optional)"}

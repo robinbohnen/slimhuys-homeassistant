@@ -25,6 +25,9 @@ from .const import (
     CONF_P1_POWER_L1,
     CONF_P1_POWER_L2,
     CONF_P1_POWER_L3,
+    CONF_P1_POWER_RETURNED_L1,
+    CONF_P1_POWER_RETURNED_L2,
+    CONF_P1_POWER_RETURNED_L3,
     CONF_P1_VOLTAGE_L1,
     CONF_P1_VOLTAGE_L2,
     CONF_P1_VOLTAGE_L3,
@@ -161,7 +164,8 @@ def _add_optional_phase_fields(
             return voltage_choices
         if key in (CONF_P1_CURRENT_L1, CONF_P1_CURRENT_L2, CONF_P1_CURRENT_L3):
             return current_choices
-        if key in (CONF_P1_POWER_L1, CONF_P1_POWER_L2, CONF_P1_POWER_L3):
+        if key in (CONF_P1_POWER_L1, CONF_P1_POWER_L2, CONF_P1_POWER_L3,
+                   CONF_P1_POWER_RETURNED_L1, CONF_P1_POWER_RETURNED_L2, CONF_P1_POWER_RETURNED_L3):
             return power_choices
         if key == CONF_P1_GAS:
             return gas_choices
@@ -177,6 +181,9 @@ def _add_optional_phase_fields(
         (CONF_P1_POWER_L1, power_sensors, "1"),
         (CONF_P1_POWER_L2, power_sensors, "2"),
         (CONF_P1_POWER_L3, power_sensors, "3"),
+        (CONF_P1_POWER_RETURNED_L1, power_sensors, "1"),
+        (CONF_P1_POWER_RETURNED_L2, power_sensors, "2"),
+        (CONF_P1_POWER_RETURNED_L3, power_sensors, "3"),
     ]
     for key, candidates, phase in field_specs:
         choices = _choices_for(key)
@@ -278,6 +285,7 @@ class SlimHuysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_P1_VOLTAGE_L1, CONF_P1_VOLTAGE_L2, CONF_P1_VOLTAGE_L3,
                     CONF_P1_CURRENT_L1, CONF_P1_CURRENT_L2, CONF_P1_CURRENT_L3,
                     CONF_P1_POWER_L1, CONF_P1_POWER_L2, CONF_P1_POWER_L3,
+                    CONF_P1_POWER_RETURNED_L1, CONF_P1_POWER_RETURNED_L2, CONF_P1_POWER_RETURNED_L3,
                     CONF_P1_GAS,
                 ):
                     if user_input.get(opt_key):
@@ -415,6 +423,7 @@ class SlimHuysOptionsFlow(config_entries.OptionsFlow):
                     CONF_P1_VOLTAGE_L1, CONF_P1_VOLTAGE_L2, CONF_P1_VOLTAGE_L3,
                     CONF_P1_CURRENT_L1, CONF_P1_CURRENT_L2, CONF_P1_CURRENT_L3,
                     CONF_P1_POWER_L1, CONF_P1_POWER_L2, CONF_P1_POWER_L3,
+                    CONF_P1_POWER_RETURNED_L1, CONF_P1_POWER_RETURNED_L2, CONF_P1_POWER_RETURNED_L3,
                     CONF_P1_GAS,
                 ) if (v := get(k))
             }

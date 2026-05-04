@@ -30,6 +30,9 @@ from .const import (
     CONF_P1_POWER_L1,
     CONF_P1_POWER_L2,
     CONF_P1_POWER_L3,
+    CONF_P1_POWER_RETURNED_L1,
+    CONF_P1_POWER_RETURNED_L2,
+    CONF_P1_POWER_RETURNED_L3,
     CONF_P1_VOLTAGE_L1,
     CONF_P1_VOLTAGE_L2,
     CONF_P1_VOLTAGE_L3,
@@ -63,6 +66,9 @@ PUSH_READING_SCHEMA = vol.Schema(
         vol.Optional("active_power_l1_w"): vol.Coerce(int),
         vol.Optional("active_power_l2_w"): vol.Coerce(int),
         vol.Optional("active_power_l3_w"): vol.Coerce(int),
+        vol.Optional("active_power_returned_l1_w"): vol.Coerce(int),
+        vol.Optional("active_power_returned_l2_w"): vol.Coerce(int),
+        vol.Optional("active_power_returned_l3_w"): vol.Coerce(int),
         vol.Optional("gas_total_m3"): vol.Coerce(float),
         vol.Optional("tariff_indicator"): vol.In([1, 2]),
         vol.Optional("timestamp"): cv.string,
@@ -111,6 +117,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 "voltage_l1", "voltage_l2", "voltage_l3",
                 "current_l1_a", "current_l2_a", "current_l3_a",
                 "active_power_l1_w", "active_power_l2_w", "active_power_l3_w",
+                "active_power_returned_l1_w", "active_power_returned_l2_w", "active_power_returned_l3_w",
                 "gas_total_m3", "tariff_indicator",
             )
             for opt in optional_keys:
@@ -183,6 +190,9 @@ def _maybe_start_p1_push(hass: HomeAssistant, entry: ConfigEntry) -> None:
     power_l1 = _get(CONF_P1_POWER_L1)
     power_l2 = _get(CONF_P1_POWER_L2)
     power_l3 = _get(CONF_P1_POWER_L3)
+    power_returned_l1 = _get(CONF_P1_POWER_RETURNED_L1)
+    power_returned_l2 = _get(CONF_P1_POWER_RETURNED_L2)
+    power_returned_l3 = _get(CONF_P1_POWER_RETURNED_L3)
     gas = _get(CONF_P1_GAS)
 
     state = hass.data[DOMAIN][entry.entry_id]
@@ -247,6 +257,9 @@ def _maybe_start_p1_push(hass: HomeAssistant, entry: ConfigEntry) -> None:
             "active_power_l1_w": power_l1,
             "active_power_l2_w": power_l2,
             "active_power_l3_w": power_l3,
+            "active_power_returned_l1_w": power_returned_l1,
+            "active_power_returned_l2_w": power_returned_l2,
+            "active_power_returned_l3_w": power_returned_l3,
         }
         for key, eid in optional_powers.items():
             v = _read_power_w(eid)
@@ -279,6 +292,7 @@ def _maybe_start_p1_push(hass: HomeAssistant, entry: ConfigEntry) -> None:
         voltage_l1, voltage_l2, voltage_l3,
         current_l1, current_l2, current_l3,
         power_l1, power_l2, power_l3,
+        power_returned_l1, power_returned_l2, power_returned_l3,
         gas,
     ) if s]
 

@@ -41,6 +41,11 @@ CONF_P1_CURRENT_L3 = "p1_current_l3_sensor"
 CONF_P1_POWER_L1 = "p1_power_l1_sensor"
 CONF_P1_POWER_L2 = "p1_power_l2_sensor"
 CONF_P1_POWER_L3 = "p1_power_l3_sensor"
+# DSMR publiceert per fase TWEE waarden (consumed + returned). Voor signed
+# netto-vermogen per fase moet je beide koppelen.
+CONF_P1_POWER_RETURNED_L1 = "p1_power_returned_l1_sensor"
+CONF_P1_POWER_RETURNED_L2 = "p1_power_returned_l2_sensor"
+CONF_P1_POWER_RETURNED_L3 = "p1_power_returned_l3_sensor"
 CONF_P1_GAS = "p1_gas_sensor"
 
 # Service names
