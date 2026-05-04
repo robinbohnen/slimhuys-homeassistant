@@ -1,28 +1,38 @@
 """SlimHuys integration entrypoint."""
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime, timezone
+from time import monotonic
 from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 
 from .api import SlimHuysApiError, SlimHuysClient
 from .const import (
     CONF_API_KEY,
     CONF_BASE_URL,
     CONF_P1_CONSUMPTION,
+    CONF_P1_CURRENT_L1,
+    CONF_P1_CURRENT_L2,
+    CONF_P1_CURRENT_L3,
     CONF_P1_DELIVERY,
     CONF_P1_ENABLED,
+    CONF_P1_GAS,
     CONF_P1_INTERVAL,
     CONF_P1_POWER,
+    CONF_P1_POWER_L1,
+    CONF_P1_POWER_L2,
+    CONF_P1_POWER_L3,
+    CONF_P1_VOLTAGE_L1,
+    CONF_P1_VOLTAGE_L2,
+    CONF_P1_VOLTAGE_L3,
     CONF_SUPPLIER,
     DEFAULT_BASE_URL,
     DEFAULT_P1_INTERVAL,
@@ -36,6 +46,8 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["sensor"]
 
+# Optionele velden voor de push_reading-service. Volledige spiegel van wat
+# /v1/me/readings accepteert; users kunnen via automation 1-op-1 doorzetten.
 PUSH_READING_SCHEMA = vol.Schema(
     {
         vol.Required("consumption_kwh_total"): vol.Coerce(float),
@@ -43,7 +55,15 @@ PUSH_READING_SCHEMA = vol.Schema(
         vol.Required("active_power_w"): vol.Coerce(int),
         vol.Optional("active_power_returned_w", default=0): vol.Coerce(int),
         vol.Optional("voltage_l1"): vol.Coerce(float),
+        vol.Optional("voltage_l2"): vol.Coerce(float),
+        vol.Optional("voltage_l3"): vol.Coerce(float),
         vol.Optional("current_l1_a"): vol.Coerce(float),
+        vol.Optional("current_l2_a"): vol.Coerce(float),
+        vol.Optional("current_l3_a"): vol.Coerce(float),
+        vol.Optional("active_power_l1_w"): vol.Coerce(int),
+        vol.Optional("active_power_l2_w"): vol.Coerce(int),
+        vol.Optional("active_power_l3_w"): vol.Coerce(int),
+        vol.Optional("gas_total_m3"): vol.Coerce(float),
         vol.Optional("tariff_indicator"): vol.In([1, 2]),
         vol.Optional("timestamp"): cv.string,
     }
@@ -67,12 +87,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "coordinator": coordinator,
         "supplier": supplier,
         "p1_unsub": None,
+        "p1_pending_unsub": None,
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
 
-    # P1-auto-push: registreer een interval-listener op de gekozen sensors
+    # P1-auto-push: state-change-driven (event-driven ipv polling).
     _maybe_start_p1_push(hass, entry)
 
     # Service push_reading: voor users die liever zelf via automation pushen
@@ -86,7 +107,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 "active_power_w": data["active_power_w"],
                 "active_power_returned_w": data.get("active_power_returned_w", 0),
             }
-            for opt in ("voltage_l1", "current_l1_a", "tariff_indicator"):
+            optional_keys = (
+                "voltage_l1", "voltage_l2", "voltage_l3",
+                "current_l1_a", "current_l2_a", "current_l3_a",
+                "active_power_l1_w", "active_power_l2_w", "active_power_l3_w",
+                "gas_total_m3", "tariff_indicator",
+            )
+            for opt in optional_keys:
                 if opt in data:
                     payload[opt] = data[opt]
 
@@ -110,6 +137,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     state = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
     if state.get("p1_unsub"):
         state["p1_unsub"]()
+    if state.get("p1_pending_unsub"):
+        state["p1_pending_unsub"]()
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
@@ -124,12 +153,15 @@ async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> Non
 
 
 def _maybe_start_p1_push(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Start een interval-task die de huidige DSMR-states naar SlimHuys pusht.
+    """Subscribe op state-change-events van de gekozen DSMR-sensors.
 
-    Werkt alleen als de user in de config-flow auto-push heeft aangezet en
-    sensors heeft gekoppeld. Faalt stil als sensors niet bestaan.
+    Pre-v0.3.0 deed dit met een vast polling-interval. Probleem: tussen
+    polls werden meter-updates gemist (DSMR pusht ~1Hz, polling op 5s
+    miste 4 metingen) én er werden onnodig pushes gedaan tijdens stabiele
+    perioden. State-change is event-driven: trigger zodra de meter een
+    nieuwe waarde publiceert, met een throttle om de upstream-API niet
+    sneller te raken dan de configured push-interval.
     """
-    # Options (van OptionsFlow) wint van data (van originele setup).
     def _get(key, default=None):
         return entry.options.get(key, entry.data.get(key, default))
 
@@ -137,58 +169,122 @@ def _maybe_start_p1_push(hass: HomeAssistant, entry: ConfigEntry) -> None:
     consumption = _get(CONF_P1_CONSUMPTION)
     delivery = _get(CONF_P1_DELIVERY)
     power = _get(CONF_P1_POWER)
-    interval = int(_get(CONF_P1_INTERVAL, DEFAULT_P1_INTERVAL))
+    interval = max(1, min(300, int(_get(CONF_P1_INTERVAL, DEFAULT_P1_INTERVAL))))
 
     if not (enabled and consumption and delivery and power):
         return
 
+    voltage_l1 = _get(CONF_P1_VOLTAGE_L1)
+    voltage_l2 = _get(CONF_P1_VOLTAGE_L2)
+    voltage_l3 = _get(CONF_P1_VOLTAGE_L3)
+    current_l1 = _get(CONF_P1_CURRENT_L1)
+    current_l2 = _get(CONF_P1_CURRENT_L2)
+    current_l3 = _get(CONF_P1_CURRENT_L3)
+    power_l1 = _get(CONF_P1_POWER_L1)
+    power_l2 = _get(CONF_P1_POWER_L2)
+    power_l3 = _get(CONF_P1_POWER_L3)
+    gas = _get(CONF_P1_GAS)
+
     state = hass.data[DOMAIN][entry.entry_id]
     client: SlimHuysClient = state["client"]
+    last_push_at = [0.0]  # mutable closure-state, monotonic seconds
 
-    async def _tick(now=None) -> None:
+    def _read_float(entity_id: str | None) -> float | None:
+        if not entity_id:
+            return None
+        s = hass.states.get(entity_id)
+        if not s or s.state in ("unknown", "unavailable", None):
+            return None
         try:
-            cs = hass.states.get(consumption)
-            ds = hass.states.get(delivery)
-            ps = hass.states.get(power)
-            if not (cs and ds and ps):
-                return
-            if cs.state in ("unknown", "unavailable") or ds.state in ("unknown", "unavailable") or ps.state in ("unknown", "unavailable"):
-                return
+            return float(s.state)
+        except (ValueError, TypeError):
+            return None
 
-            # Power-sensor kan W of kW zijn — detecteer via unit
-            unit = (ps.attributes.get("unit_of_measurement") or "").lower()
-            try:
-                p_value = float(ps.state)
-            except ValueError:
-                return
-            if unit in ("kw", "kilowatt"):
-                p_value = p_value * 1000
+    def _read_power_w(entity_id: str | None) -> int | None:
+        """Power-sensor kan W of kW zijn — detecteer via unit."""
+        if not entity_id:
+            return None
+        s = hass.states.get(entity_id)
+        if not s or s.state in ("unknown", "unavailable", None):
+            return None
+        try:
+            value = float(s.state)
+        except (ValueError, TypeError):
+            return None
+        unit = (s.attributes.get("unit_of_measurement") or "").lower()
+        if unit in ("kw", "kilowatt"):
+            value *= 1000
+        return int(round(value))
 
-            try:
-                payload = {
-                    "timestamp": _now_iso(),
-                    "consumption_kwh_total": float(cs.state),
-                    "delivered_kwh_total": float(ds.state),
-                    "active_power_w": int(round(p_value)),
-                    "active_power_returned_w": 0,
-                }
-            except (ValueError, TypeError):
-                return
+    async def _do_push(_now=None) -> None:
+        state["p1_pending_unsub"] = None
+        c_total = _read_float(consumption)
+        d_total = _read_float(delivery)
+        p_w = _read_power_w(power)
+        if c_total is None or d_total is None or p_w is None:
+            return  # essential fields missen; niets doorzetten
 
+        payload: dict[str, Any] = {
+            "timestamp": _now_iso(),
+            "consumption_kwh_total": c_total,
+            "delivered_kwh_total": d_total,
+            "active_power_w": p_w,
+            "active_power_returned_w": 0,
+        }
+        # Optionele velden — alleen toevoegen als de sensor configured is
+        # én een leesbare waarde heeft. Anders leveren we niets op die key.
+        optional_floats = {
+            "voltage_l1": voltage_l1, "voltage_l2": voltage_l2, "voltage_l3": voltage_l3,
+            "current_l1_a": current_l1, "current_l2_a": current_l2, "current_l3_a": current_l3,
+            "gas_total_m3": gas,
+        }
+        for key, eid in optional_floats.items():
+            v = _read_float(eid)
+            if v is not None:
+                payload[key] = v
+
+        optional_powers = {
+            "active_power_l1_w": power_l1,
+            "active_power_l2_w": power_l2,
+            "active_power_l3_w": power_l3,
+        }
+        for key, eid in optional_powers.items():
+            v = _read_power_w(eid)
+            if v is not None:
+                payload[key] = v
+
+        try:
             await client.push_readings([payload])
+            last_push_at[0] = monotonic()
         except SlimHuysApiError as err:
             _LOGGER.debug("SlimHuys auto-push faalde (silent): %s", err)
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("Onverwachte fout in P1-push: %s", err)
 
-    state["p1_unsub"] = async_track_time_interval(hass, _tick, _interval_timedelta(interval))
+    @callback
+    def _on_state_change(_event) -> None:
+        elapsed = monotonic() - last_push_at[0]
+        if elapsed >= interval:
+            # Genoeg tijd verstreken sinds laatste push — flush direct.
+            hass.async_create_task(_do_push())
+        elif state.get("p1_pending_unsub") is None:
+            # Te kort geleden — schedule één push voor het einde van het
+            # interval-window. Verdere state-changes binnen dit window
+            # worden gemerged (de _do_push leest gewoon de nieuwste states).
+            delay = max(0.1, interval - elapsed)
+            state["p1_pending_unsub"] = async_call_later(hass, delay, _do_push)
 
+    sensors_to_watch = [s for s in (
+        consumption, delivery, power,
+        voltage_l1, voltage_l2, voltage_l3,
+        current_l1, current_l2, current_l3,
+        power_l1, power_l2, power_l3,
+        gas,
+    ) if s]
 
-def _interval_timedelta(seconds: int):
-    from datetime import timedelta
-    # 1s minimum: DSMR-meters publiceren naturally elke ~1s. Backend rate-limit
-    # is 600/min per API-key (= 10/s) dus 1Hz uit één instance is comfortabel.
-    return timedelta(seconds=max(1, min(300, seconds)))
+    state["p1_unsub"] = async_track_state_change_event(
+        hass, sensors_to_watch, _on_state_change
+    )
 
 
 def _now_iso() -> str:

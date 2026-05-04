@@ -58,8 +58,17 @@ mogelijke DSMR-sensors en biedt 3 dropdowns aan:
 - Cumulatieve teruglevering (kWh)
 - Huidig vermogen (W of kW — wordt automatisch geconverteerd)
 
-Plus een push-interval (1–300 seconden, default 30s). De integratie pusht
-zelf je waardes naar SlimHuys — je hoeft geen automation te schrijven.
+Plus een push-interval (1–300 seconden, default 30s). Sinds v0.3.0 is de
+push **event-driven**: zodra je DSMR-meter een nieuwe waarde publiceert
+gaat 'ie meteen naar SlimHuys (met throttling op de configured interval).
+Geen verspilde polls tijdens stabiele perioden, geen gemiste meter-updates.
+
+**Optionele velden** (3-fase + gas) verschijnen automatisch onderin de
+wizard als ze in je HA-instance bestaan:
+
+- Spanning + stroom L1/L2/L3 (3-fase huishoudens)
+- Vermogen L1/L2/L3 (per-fase active power)
+- Gas-totaalstand (m³ cumulatief — DSMR P1 met gas-aansluiting)
 
 > **1-seconde push** is sinds v0.2.0 mogelijk. DSMR-meters publiceren naturally
 > elke ~1s; de SlimHuys-API rate-limit is 600/min/key (= 10/s) dus 1Hz uit één

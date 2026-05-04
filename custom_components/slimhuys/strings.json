@@ -18,13 +18,23 @@
       },
       "p1_link": {
         "title": "Link your P1 meter",
-        "description": "Found {energy_count} kWh-sensors and {power_count} W-sensors. Cumulative readings (kWh) and current power (W/kW) are filtered to relevant choices only.",
+        "description": "Found {energy_count} kWh-sensors and {power_count} W-sensors. Optional 3-phase + gas sensors are auto-detected — leave blank if your meter doesn't expose them.",
         "data": {
           "p1_enabled": "Automatically push DSMR data to SlimHuys",
           "p1_consumption_sensor": "Total consumption (kWh, cumulative)",
           "p1_delivery_sensor": "Total delivery (kWh, cumulative)",
           "p1_power_sensor": "Current power (W or kW)",
-          "p1_interval_seconds": "Push interval (seconds)"
+          "p1_interval_seconds": "Push interval (seconds, min 1)",
+          "p1_voltage_l1_sensor": "Voltage L1 (V, optional)",
+          "p1_voltage_l2_sensor": "Voltage L2 (V, optional)",
+          "p1_voltage_l3_sensor": "Voltage L3 (V, optional)",
+          "p1_current_l1_sensor": "Current L1 (A, optional)",
+          "p1_current_l2_sensor": "Current L2 (A, optional)",
+          "p1_current_l3_sensor": "Current L3 (A, optional)",
+          "p1_power_l1_sensor": "Power L1 (W, optional)",
+          "p1_power_l2_sensor": "Power L2 (W, optional)",
+          "p1_power_l3_sensor": "Power L3 (W, optional)",
+          "p1_gas_sensor": "Gas (m³ cumulative, optional)"
         }
       }
     },
@@ -46,7 +56,17 @@
           "p1_consumption_sensor": "Total consumption (kWh)",
           "p1_delivery_sensor": "Total delivery (kWh)",
           "p1_power_sensor": "Current power (W or kW)",
-          "p1_interval_seconds": "Push interval (seconds)"
+          "p1_interval_seconds": "Push interval (seconds, min 1)",
+          "p1_voltage_l1_sensor": "Voltage L1 (V, optional)",
+          "p1_voltage_l2_sensor": "Voltage L2 (V, optional)",
+          "p1_voltage_l3_sensor": "Voltage L3 (V, optional)",
+          "p1_current_l1_sensor": "Current L1 (A, optional)",
+          "p1_current_l2_sensor": "Current L2 (A, optional)",
+          "p1_current_l3_sensor": "Current L3 (A, optional)",
+          "p1_power_l1_sensor": "Power L1 (W, optional)",
+          "p1_power_l2_sensor": "Power L2 (W, optional)",
+          "p1_power_l3_sensor": "Power L3 (W, optional)",
+          "p1_gas_sensor": "Gas (m³ cumulative, optional)"
         }
       }
     }
@@ -61,7 +81,15 @@
         "active_power_w": {"name": "Current power (W)", "description": "Positive = consuming, negative = delivering."},
         "active_power_returned_w": {"name": "Returned power (W)"},
         "voltage_l1": {"name": "Voltage L1 (V)"},
+        "voltage_l2": {"name": "Voltage L2 (V)"},
+        "voltage_l3": {"name": "Voltage L3 (V)"},
         "current_l1_a": {"name": "Current L1 (A)"},
+        "current_l2_a": {"name": "Current L2 (A)"},
+        "current_l3_a": {"name": "Current L3 (A)"},
+        "active_power_l1_w": {"name": "Power L1 (W)"},
+        "active_power_l2_w": {"name": "Power L2 (W)"},
+        "active_power_l3_w": {"name": "Power L3 (W)"},
+        "gas_total_m3": {"name": "Gas total (m³)"},
         "tariff_indicator": {"name": "Tariff indicator (1=low, 2=normal)"},
         "timestamp": {"name": "Timestamp (ISO 8601, optional)"}
       }

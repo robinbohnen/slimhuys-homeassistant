@@ -18,13 +18,23 @@
       },
       "p1_link": {
         "title": "P1-meter koppelen",
-        "description": "Gevonden: {energy_count} kWh-sensors en {power_count} W-sensors. De dropdowns tonen alleen sensors met de juiste eenheid.",
+        "description": "Gevonden: {energy_count} kWh-sensors en {power_count} W-sensors. Optionele 3-fase + gas-sensors worden automatisch gedetecteerd — laat leeg als je meter ze niet exposeert.",
         "data": {
           "p1_enabled": "Automatisch DSMR-data naar SlimHuys sturen",
           "p1_consumption_sensor": "Cumulatief verbruik (kWh, totaalstand)",
           "p1_delivery_sensor": "Cumulatieve teruglevering (kWh, totaalstand)",
           "p1_power_sensor": "Huidig vermogen (W of kW)",
-          "p1_interval_seconds": "Push-interval (seconden)"
+          "p1_interval_seconds": "Push-interval (seconden, min 1)",
+          "p1_voltage_l1_sensor": "Spanning L1 (V, optioneel)",
+          "p1_voltage_l2_sensor": "Spanning L2 (V, optioneel)",
+          "p1_voltage_l3_sensor": "Spanning L3 (V, optioneel)",
+          "p1_current_l1_sensor": "Stroom L1 (A, optioneel)",
+          "p1_current_l2_sensor": "Stroom L2 (A, optioneel)",
+          "p1_current_l3_sensor": "Stroom L3 (A, optioneel)",
+          "p1_power_l1_sensor": "Vermogen L1 (W, optioneel)",
+          "p1_power_l2_sensor": "Vermogen L2 (W, optioneel)",
+          "p1_power_l3_sensor": "Vermogen L3 (W, optioneel)",
+          "p1_gas_sensor": "Gas (m³ totaalstand, optioneel)"
         }
       }
     },
@@ -46,7 +56,17 @@
           "p1_consumption_sensor": "Cumulatief verbruik (kWh)",
           "p1_delivery_sensor": "Cumulatieve teruglevering (kWh)",
           "p1_power_sensor": "Huidig vermogen (W of kW)",
-          "p1_interval_seconds": "Push-interval (seconden)"
+          "p1_interval_seconds": "Push-interval (seconden, min 1)",
+          "p1_voltage_l1_sensor": "Spanning L1 (V, optioneel)",
+          "p1_voltage_l2_sensor": "Spanning L2 (V, optioneel)",
+          "p1_voltage_l3_sensor": "Spanning L3 (V, optioneel)",
+          "p1_current_l1_sensor": "Stroom L1 (A, optioneel)",
+          "p1_current_l2_sensor": "Stroom L2 (A, optioneel)",
+          "p1_current_l3_sensor": "Stroom L3 (A, optioneel)",
+          "p1_power_l1_sensor": "Vermogen L1 (W, optioneel)",
+          "p1_power_l2_sensor": "Vermogen L2 (W, optioneel)",
+          "p1_power_l3_sensor": "Vermogen L3 (W, optioneel)",
+          "p1_gas_sensor": "Gas (m³ totaalstand, optioneel)"
         }
       }
     }
@@ -71,12 +91,16 @@
         "active_power_returned_w": {
           "name": "Teruglevering vermogen (W)"
         },
-        "voltage_l1": {
-          "name": "Spanning L1 (V)"
-        },
-        "current_l1_a": {
-          "name": "Stroom L1 (A)"
-        },
+        "voltage_l1": {"name": "Spanning L1 (V)"},
+        "voltage_l2": {"name": "Spanning L2 (V)"},
+        "voltage_l3": {"name": "Spanning L3 (V)"},
+        "current_l1_a": {"name": "Stroom L1 (A)"},
+        "current_l2_a": {"name": "Stroom L2 (A)"},
+        "current_l3_a": {"name": "Stroom L3 (A)"},
+        "active_power_l1_w": {"name": "Vermogen L1 (W)"},
+        "active_power_l2_w": {"name": "Vermogen L2 (W)"},
+        "active_power_l3_w": {"name": "Vermogen L3 (W)"},
+        "gas_total_m3": {"name": "Gas totaalstand (m³)"},
         "tariff_indicator": {
           "name": "Tarief-indicator (1=laag, 2=normaal)"
         },

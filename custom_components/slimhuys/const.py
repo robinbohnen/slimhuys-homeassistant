@@ -31,6 +31,18 @@ CONF_P1_DELIVERY = "p1_delivery_sensor"
 CONF_P1_POWER = "p1_power_sensor"
 CONF_P1_INTERVAL = "p1_interval_seconds"
 
+# Optionele 3-fase + gas — leeg laten als de meter ze niet exposeert.
+CONF_P1_VOLTAGE_L1 = "p1_voltage_l1_sensor"
+CONF_P1_VOLTAGE_L2 = "p1_voltage_l2_sensor"
+CONF_P1_VOLTAGE_L3 = "p1_voltage_l3_sensor"
+CONF_P1_CURRENT_L1 = "p1_current_l1_sensor"
+CONF_P1_CURRENT_L2 = "p1_current_l2_sensor"
+CONF_P1_CURRENT_L3 = "p1_current_l3_sensor"
+CONF_P1_POWER_L1 = "p1_power_l1_sensor"
+CONF_P1_POWER_L2 = "p1_power_l2_sensor"
+CONF_P1_POWER_L3 = "p1_power_l3_sensor"
+CONF_P1_GAS = "p1_gas_sensor"
+
 # Service names
 SERVICE_PUSH_READING = "push_reading"
 
