@@ -48,6 +48,41 @@ CONF_P1_POWER_RETURNED_L2 = "p1_power_returned_l2_sensor"
 CONF_P1_POWER_RETURNED_L3 = "p1_power_returned_l3_sensor"
 CONF_P1_GAS = "p1_gas_sensor"
 
+# P1-mode (v0.5.0+): drie wederzijds-exclusieve P1-bronnen per entry.
+CONF_P1_MODE = "p1_mode"
+P1_MODE_NONE = "none"
+P1_MODE_PUSH = "push"  # HA → SlimHuys (DSMR-sensors → POST /me/readings)
+P1_MODE_PULL = "pull"  # SlimHuys → HA (SSE /me/usage/live-events → entities)
+
+# Pull-mode opties
+CONF_PULL_POLL_FALLBACK = "pull_poll_fallback"
+CONF_PULL_PROBE_AT_SETUP = "pull_probe_at_setup"
+DEFAULT_PULL_POLL_FALLBACK = True
+DEFAULT_PULL_PROBE_AT_SETUP = True
+
+# SSE-tuning
+SSE_RECONNECT_INITIAL_DELAY = 1.0
+SSE_RECONNECT_MAX_DELAY = 30.0
+SSE_HEARTBEAT_TIMEOUT = 45  # 3× server-ping-window van 15s — robuust tegen jitter
+POLL_FALLBACK_INTERVAL = 5.0
+
+# Sensor unique-id-suffixes voor pull-mode entities (stabiel over restarts)
+LIVE_SUFFIX_ACTIVE_POWER = "live_active_power"
+LIVE_SUFFIX_ACTIVE_POWER_RETURNED = "live_active_power_returned"
+LIVE_SUFFIX_CONSUMPTION_TOTAL = "live_consumption_total"
+LIVE_SUFFIX_DELIVERY_TOTAL = "live_delivery_total"
+LIVE_SUFFIX_VOLTAGE_L1 = "live_voltage_l1"
+LIVE_SUFFIX_VOLTAGE_L2 = "live_voltage_l2"
+LIVE_SUFFIX_VOLTAGE_L3 = "live_voltage_l3"
+LIVE_SUFFIX_CURRENT_L1 = "live_current_l1"
+LIVE_SUFFIX_CURRENT_L2 = "live_current_l2"
+LIVE_SUFFIX_CURRENT_L3 = "live_current_l3"
+LIVE_SUFFIX_POWER_L1 = "live_power_l1"
+LIVE_SUFFIX_POWER_L2 = "live_power_l2"
+LIVE_SUFFIX_POWER_L3 = "live_power_l3"
+LIVE_SUFFIX_GAS_TOTAL = "live_gas_total"
+LIVE_SUFFIX_WATER_TOTAL = "live_water_total"
+
 # Service names
 SERVICE_PUSH_READING = "push_reading"
 

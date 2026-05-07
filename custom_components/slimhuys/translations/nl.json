@@ -16,11 +16,25 @@
           "supplier": "Leverancier"
         }
       },
-      "p1_link": {
-        "title": "P1-meter koppelen",
+      "p1_mode": {
+        "title": "P1-bron",
+        "description": "Hoe wil je P1/DSMR-data laten stromen? Account heeft gekoppelde SlimHuys-P1: {has_p1_meter}.\n\n• none — alleen prijs-sensors\n• push — Home Assistant DSMR-sensors → SlimHuys-cloud\n• pull — SlimHuys-cloud → Home Assistant entities (vereist gekoppelde SlimHuys-P1)",
+        "data": {
+          "p1_mode": "P1-modus"
+        }
+      },
+      "p1_pull": {
+        "title": "Pull vanuit SlimHuys-cloud",
+        "description": "Live P1-data stroomt vanuit SlimHuys naar Home Assistant via Server-Sent Events.",
+        "data": {
+          "pull_poll_fallback": "HTTP-polling als fallback wanneer SSE faalt",
+          "pull_probe_at_setup": "Meter pollen bij setup (aanbevolen — detecteert 3-fase-velden)"
+        }
+      },
+      "p1_push": {
+        "title": "Push DSMR naar SlimHuys",
         "description": "Gevonden: {energy_count} kWh-sensors en {power_count} W-sensors. Optionele 3-fase + gas-sensors worden automatisch gedetecteerd — laat leeg als je meter ze niet exposeert.",
         "data": {
-          "p1_enabled": "Automatisch DSMR-data naar SlimHuys sturen",
           "p1_consumption_sensor": "Cumulatief verbruik (kWh, totaalstand)",
           "p1_delivery_sensor": "Cumulatieve teruglevering (kWh, totaalstand)",
           "p1_power_sensor": "Huidig vermogen (W of kW)",
@@ -55,7 +69,19 @@
         "title": "SlimHuys-instellingen",
         "data": {
           "supplier": "Leverancier",
-          "p1_enabled": "Automatisch DSMR-data naar SlimHuys sturen",
+          "p1_mode": "P1-modus (none / push / pull)"
+        }
+      },
+      "p1_pull": {
+        "title": "Pull-instellingen",
+        "data": {
+          "pull_poll_fallback": "HTTP-polling als fallback wanneer SSE faalt",
+          "pull_probe_at_setup": "Meter pollen bij setup"
+        }
+      },
+      "p1_push": {
+        "title": "Push-instellingen",
+        "data": {
           "p1_consumption_sensor": "Cumulatief verbruik (kWh)",
           "p1_delivery_sensor": "Cumulatieve teruglevering (kWh)",
           "p1_power_sensor": "Huidig vermogen (W of kW)",

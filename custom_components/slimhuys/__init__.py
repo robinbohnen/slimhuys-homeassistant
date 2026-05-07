@@ -26,6 +26,7 @@ from .const import (
     CONF_P1_ENABLED,
     CONF_P1_GAS,
     CONF_P1_INTERVAL,
+    CONF_P1_MODE,
     CONF_P1_POWER,
     CONF_P1_POWER_L1,
     CONF_P1_POWER_L2,
@@ -36,14 +37,22 @@ from .const import (
     CONF_P1_VOLTAGE_L1,
     CONF_P1_VOLTAGE_L2,
     CONF_P1_VOLTAGE_L3,
+    CONF_PULL_POLL_FALLBACK,
+    CONF_PULL_PROBE_AT_SETUP,
     CONF_SUPPLIER,
     DEFAULT_BASE_URL,
     DEFAULT_P1_INTERVAL,
+    DEFAULT_PULL_POLL_FALLBACK,
+    DEFAULT_PULL_PROBE_AT_SETUP,
     DEFAULT_SUPPLIER,
     DOMAIN,
+    P1_MODE_NONE,
+    P1_MODE_PULL,
+    P1_MODE_PUSH,
     SERVICE_PUSH_READING,
 )
 from .coordinator import SlimHuysCoordinator
+from .live_coordinator import SlimHuysLiveCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -76,22 +85,72 @@ PUSH_READING_SCHEMA = vol.Schema(
 )
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Vertaal entry-schema v1 (`p1_enabled` boolean) → v2 (`p1_mode` enum)."""
+    if entry.version >= 2:
+        return True
+
+    new_data = {**entry.data}
+    new_options = {**entry.options}
+
+    def _get(key, default=None):
+        return entry.options.get(key, entry.data.get(key, default))
+
+    # Lege DSMR-config + p1_enabled=True → "none" (push-mode zou toch niet werken).
+    has_dsmr_sensors = bool(
+        _get(CONF_P1_CONSUMPTION) and _get(CONF_P1_DELIVERY) and _get(CONF_P1_POWER)
+    )
+    if _get(CONF_P1_ENABLED, False) and has_dsmr_sensors:
+        mode = P1_MODE_PUSH
+    else:
+        mode = P1_MODE_NONE
+
+    if CONF_P1_MODE not in new_options and CONF_P1_MODE not in new_data:
+        new_data[CONF_P1_MODE] = mode
+
+    hass.config_entries.async_update_entry(
+        entry, data=new_data, options=new_options, version=2
+    )
+    _LOGGER.info("Slimhuys-entry %s gemigreerd naar v2 (p1_mode=%s)", entry.entry_id, mode)
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     session = async_get_clientsession(hass)
 
     base_url = entry.data.get(CONF_BASE_URL, DEFAULT_BASE_URL)
     api_key = entry.data[CONF_API_KEY]
     supplier = entry.options.get(CONF_SUPPLIER, entry.data.get(CONF_SUPPLIER, DEFAULT_SUPPLIER))
+    mode = entry.options.get(CONF_P1_MODE, entry.data.get(CONF_P1_MODE, P1_MODE_NONE))
 
     client = SlimHuysClient(session, base_url, api_key)
     coordinator = SlimHuysCoordinator(hass, client, supplier)
     await coordinator.async_config_entry_first_refresh()
 
+    live_coordinator: SlimHuysLiveCoordinator | None = None
+    if mode == P1_MODE_PULL:
+        poll_fallback = bool(entry.options.get(
+            CONF_PULL_POLL_FALLBACK,
+            entry.data.get(CONF_PULL_POLL_FALLBACK, DEFAULT_PULL_POLL_FALLBACK),
+        ))
+        probe_at_setup = bool(entry.options.get(
+            CONF_PULL_PROBE_AT_SETUP,
+            entry.data.get(CONF_PULL_PROBE_AT_SETUP, DEFAULT_PULL_PROBE_AT_SETUP),
+        ))
+        live_coordinator = SlimHuysLiveCoordinator(
+            hass, client,
+            poll_fallback_enabled=poll_fallback,
+            probe_at_setup=probe_at_setup,
+        )
+        await live_coordinator.async_probe()
+
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
         "client": client,
         "coordinator": coordinator,
+        "live_coordinator": live_coordinator,
         "supplier": supplier,
+        "mode": mode,
         "p1_unsub": None,
         "p1_pending_unsub": None,
     }
@@ -99,8 +158,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
 
-    # P1-auto-push: state-change-driven (event-driven ipv polling).
-    _maybe_start_p1_push(hass, entry)
+    if live_coordinator is not None:
+        await live_coordinator.async_start()
+
+    if mode == P1_MODE_PUSH:
+        # P1-auto-push: state-change-driven (event-driven ipv polling).
+        _maybe_start_p1_push(hass, entry)
 
     # Service push_reading: voor users die liever zelf via automation pushen
     if not hass.services.has_service(DOMAIN, SERVICE_PUSH_READING):
@@ -146,6 +209,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         state["p1_unsub"]()
     if state.get("p1_pending_unsub"):
         state["p1_pending_unsub"]()
+    live: SlimHuysLiveCoordinator | None = state.get("live_coordinator")
+    if live is not None:
+        await live.async_stop()
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:

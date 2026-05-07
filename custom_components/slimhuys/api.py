@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import asyncio
+import json as _json
 import logging
-from typing import Any
+from typing import Any, AsyncIterator
 
 import aiohttp
 
-from .const import VERSION
+from .const import SSE_HEARTBEAT_TIMEOUT, VERSION
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -113,3 +114,90 @@ class SlimHuysClient:
             json={"readings": readings},
             with_auth=True,
         )
+
+    async def current_usage(self) -> dict[str, Any]:
+        """Snapshot — `live` (laatste reading), `today`, `meter`, `solar`.
+
+        Gebruikt voor (a) probe bij setup om te bepalen welke 3-fase-velden
+        de meter exposeert, (b) polling-fallback wanneer SSE faalt.
+        """
+        return await self._request("GET", "/v1/me/usage/current", with_auth=True)
+
+    async def live_events_stream(self) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+        """Async generator over `/v1/me/usage/live-events` (Server-Sent Events).
+
+        Yield't `(event_name, parsed_json_data)`-tuples per binnenkomend event.
+        Stopt zodra de stream sluit (server cap'd op 5min, of disconnect);
+        upstream-coordinator regelt reconnect-strategie.
+
+        Onbekende event-types (bijv. toekomstige `solar-reading`) worden
+        gewoon doorgegeven — de coordinator beslist wat ermee te doen. SSE-
+        comments/heartbeats (`: ping`) worden stil geconsumeerd; de read-
+        timeout op `SSE_HEARTBEAT_TIMEOUT` triggert een reconnect bij stilte.
+        """
+        url = f"{self._base_url}/v1/me/usage/live-events"
+        headers = self._headers(with_auth=True)
+        headers["Accept"] = "text/event-stream"
+        # Geen overall request-timeout (server houdt 'm 5min open), wel een
+        # read-timeout zodat heartbeat-loss een reconnect triggert.
+        timeout = aiohttp.ClientTimeout(
+            total=None, connect=15, sock_read=SSE_HEARTBEAT_TIMEOUT
+        )
+        try:
+            async with self._session.get(
+                url, headers=headers, timeout=timeout
+            ) as resp:
+                if resp.status in (401, 403):
+                    text = await resp.text()
+                    raise SlimHuysAuthError(f"{resp.status}: {text[:200]}")
+                if resp.status >= 400:
+                    text = await resp.text()
+                    raise SlimHuysApiError(f"HTTP {resp.status}: {text[:200]}")
+
+                # SSE-spec: frames gescheiden door blank line. Elke frame
+                # heeft `event:` (default `message`) + `data:` (multi-line
+                # mogelijk, joined met `\n`). `:` start een comment/heartbeat.
+                event_name = "message"
+                data_lines: list[str] = []
+
+                # `resp.content` itereert chunks, niet regels — gebruik
+                # readline() in een loop om SSE per-regel te parsen.
+                while True:
+                    raw_line = await resp.content.readline()
+                    if not raw_line:
+                        break  # stream gesloten
+                    try:
+                        line = raw_line.decode("utf-8").rstrip("\r\n")
+                    except UnicodeDecodeError:
+                        continue
+
+                    if line == "":
+                        # Frame-einde — yield als er data is
+                        if data_lines:
+                            data_str = "\n".join(data_lines)
+                            try:
+                                payload = _json.loads(data_str)
+                            except _json.JSONDecodeError:
+                                _LOGGER.debug(
+                                    "SSE: ongeldige JSON voor event %r: %r",
+                                    event_name, data_str[:120],
+                                )
+                                payload = None
+                            if payload is not None:
+                                yield event_name, payload
+                        event_name = "message"
+                        data_lines = []
+                        continue
+
+                    if line.startswith(":"):
+                        # Comment / heartbeat — negeer (read-timeout doet het werk)
+                        continue
+                    if line.startswith("event:"):
+                        event_name = line[6:].strip() or "message"
+                    elif line.startswith("data:"):
+                        data_lines.append(line[5:].lstrip())
+                    # Andere SSE-velden (id:, retry:) negeren we expliciet
+        except (asyncio.TimeoutError, TimeoutError) as err:
+            raise SlimHuysApiError("sse timeout") from err
+        except aiohttp.ClientError as err:
+            raise SlimHuysApiError(f"sse transport: {err}") from err

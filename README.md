@@ -48,11 +48,24 @@ data:
 Kopieer `custom_components/slimhuys/` naar je HA `config/custom_components/`-folder
 en restart HA.
 
-## P1/DSMR-meter pushen — geen YAML nodig
+## P1-data: push of pull
 
-Tijdens **Add Integration** ziet de wizard 3 stappen: API-key → leverancier →
-**P1-koppeling**. In de laatste stap detecteert de integratie automatisch
-mogelijke DSMR-sensors en biedt 3 dropdowns aan:
+Tijdens **Add Integration** kies je in stap 3 één van drie P1-modi:
+
+| Modus | Richting | Wanneer kiezen |
+|---|---|---|
+| **none** | geen P1 | Je wilt alleen de prijs-sensors |
+| **push** | HA → SlimHuys | Je hebt een DSMR-meter via USB / HomeWizard / Tibber Pulse en wilt die data delen met SlimHuys |
+| **pull** | SlimHuys → HA | Je hebt een SlimHuys-P1-bridge die rechtstreeks aan SlimHuys is gekoppeld |
+
+De wizard kiest een sane default op basis van je SlimHuys-account
+(`has_p1_meter`-veld uit `/v1/me`): is er al een P1-bridge gepaird, dan
+default'ed pull, anders push.
+
+### Push-modus — DSMR-data naar SlimHuys
+
+In stap 4 detecteert de integratie automatisch mogelijke DSMR-sensors
+en biedt dropdowns aan:
 
 - Cumulatief verbruik (kWh)
 - Cumulatieve teruglevering (kWh)
@@ -61,28 +74,45 @@ mogelijke DSMR-sensors en biedt 3 dropdowns aan:
 Plus een push-interval (1–300 seconden, default 30s). Sinds v0.3.0 is de
 push **event-driven**: zodra je DSMR-meter een nieuwe waarde publiceert
 gaat 'ie meteen naar SlimHuys (met throttling op de configured interval).
-Geen verspilde polls tijdens stabiele perioden, geen gemiste meter-updates.
 
 **Optionele velden** (3-fase + gas) verschijnen automatisch onderin de
-wizard als ze in je HA-instance bestaan:
-
-- Spanning + stroom L1/L2/L3 (3-fase huishoudens)
-- Vermogen L1/L2/L3 (per-fase active power)
-- Gas-totaalstand (m³ cumulatief — DSMR P1 met gas-aansluiting)
+wizard als ze in je HA-instance bestaan.
 
 > **1-seconde push** is sinds v0.2.0 mogelijk. DSMR-meters publiceren naturally
 > elke ~1s; de SlimHuys-API rate-limit is 600/min/key (= 10/s) dus 1Hz uit één
-> instance is comfortabel. Aan te raden voor live-dashboard-feel; voor
-> energie-tracking is 30s ruim genoeg.
+> instance is comfortabel.
 
-Werkt out-of-the-box met:
-
-- **DSMR Slimme meter** (P1-poort via USB): `sensor.dsmr_reading_*`
-- **HomeWizard P1-meter**: `sensor.p1_meter_*`
-- **Tibber Pulse**: `sensor.tibber_*`
+Werkt out-of-the-box met DSMR Slimme meter (USB), HomeWizard P1, en Tibber Pulse.
 
 Wil je toch zelf via een automation pushen? De service `slimhuys.push_reading`
 blijft beschikbaar voor maatwerk.
+
+### Pull-modus — SlimHuys-P1 als bron voor HA
+
+Heb je een P1-meter rechtstreeks aan SlimHuys gekoppeld (cellular, wifi)?
+Dan vult pull-modus je HA met live entiteiten — geen DSMR-USB nodig.
+
+Connectie: **Server-Sent Events** op `/v1/me/usage/live-events` — sub-seconde
+latency, native HTTP, automatische reconnect met exponential backoff. Bij
+SSE-uitval valt de integratie terug op `GET /v1/me/usage/current` (5s-poll).
+
+Aangemaakte sensors:
+
+| Entity | Eenheid | Device-class |
+|---|---|---|
+| `sensor.actief_vermogen` | W | power |
+| `sensor.teruglevering_vermogen` | W | power |
+| `sensor.verbruik_totaal` | kWh (total_increasing) | energy |
+| `sensor.teruglevering_totaal` | kWh (total_increasing) | energy |
+| `sensor.spanning_l1/l2/l3` | V | voltage (L2/L3 als diagnostic) |
+| `sensor.stroom_l1/l2/l3` | A | current (L2/L3 als diagnostic) |
+| `sensor.vermogen_l1/l2/l3` | W (signed) | power |
+| `sensor.gas_totaal` | m³ (total_increasing) | gas |
+| `sensor.water_totaal` | L native, m³ display (total_increasing) | water |
+
+3-fase entities worden alleen aangemaakt voor fasen die de meter rapporteert
+(via een eenmalige `/current`-probe bij setup). 1-fase huishoudens krijgen
+geen permanent-unavailable L2/L3-entities.
 
 ## Configuratie wijzigen
 
