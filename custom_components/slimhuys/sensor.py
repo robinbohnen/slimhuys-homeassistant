@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -71,6 +72,9 @@ async def async_setup_entry(
         CheapestBlockAverageSensor(coordinator, entry, supplier),
         NextNegativeSensor(coordinator, entry, supplier),
         CurrentLevelSensor(coordinator, entry, supplier),
+        PricesTodaySensor(coordinator, entry, supplier),
+        PricesTomorrowSensor(coordinator, entry, supplier),
+        PricesTodayQuarterSensor(coordinator, entry, supplier),
     ]
 
     if mode == P1_MODE_PULL and live_coordinator is not None:
@@ -328,6 +332,191 @@ class CurrentLevelSensor(_BaseSensor):
     def native_value(self) -> str | None:
         cur = (self.coordinator.data or {}).get("current")
         return cur["now"]["level"] if cur else None
+
+
+# ---------- Today/tomorrow price arrays (dashboard-friendly) ----------
+
+
+def _today_str() -> str:
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def _tomorrow_str() -> str:
+    return (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+
+
+def _end_iso(start_iso: str, minutes: int) -> str | None:
+    try:
+        dt = datetime.fromisoformat(start_iso)
+    except ValueError:
+        return None
+    return (dt + timedelta(minutes=minutes)).isoformat()
+
+
+def _granularity_minutes(points: list[dict[str, Any]]) -> int:
+    """Detect grid: 15 (≥48 points across 2 days) of 60. Default 60."""
+    return 15 if len(points) >= 48 else 60
+
+
+def _build_hourly_raw(
+    hourly: list[dict[str, Any]], day: str, field: str = "price"
+) -> list[dict[str, Any]]:
+    out = []
+    for h in hourly:
+        if h["day"] != day or h.get(field) is None or not h.get("start_ts"):
+            continue
+        end = _end_iso(h["start_ts"], 60)
+        if end is None:
+            continue
+        out.append({"start": h["start_ts"], "end": end, "value": h[field]})
+    return out
+
+
+class PricesTodaySensor(_BaseSensor):
+    """Uurprijzen vandaag — state = huidige prijs, attrs = array + raw_today."""
+
+    _attr_native_unit_of_measurement = UNIT_EUR_PER_KWH
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_suggested_display_precision = 4
+    _attr_icon = "mdi:chart-bar"
+
+    def __init__(self, coordinator, entry, supplier):
+        super().__init__(coordinator, entry, supplier, "prices_today", "Prijzen vandaag")
+
+    @property
+    def native_value(self) -> float | None:
+        cur = (self.coordinator.data or {}).get("current")
+        if not cur:
+            return None
+        return cur["now"]["breakdown"]["total_eur_per_kwh"]
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        data = self.coordinator.data or {}
+        hourly = data.get("hourly", [])
+        today = _today_str()
+        prices = [
+            h["price"] for h in hourly if h["day"] == today and h["price"] is not None
+        ]
+        if not prices:
+            return None
+        return {
+            "prices": prices,
+            "raw_today": _build_hourly_raw(hourly, today),
+            "raw_today_epex": _build_hourly_raw(hourly, today, field="epex"),
+            "average": sum(prices) / len(prices),
+            "min": min(prices),
+            "max": max(prices),
+            "supplier": self._supplier,
+        }
+
+
+class PricesTomorrowSensor(_BaseSensor):
+    """Uurprijzen morgen — state = daggemiddelde, None vóór EPEX-publicatie (~14:00)."""
+
+    _attr_native_unit_of_measurement = UNIT_EUR_PER_KWH
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 4
+    _attr_icon = "mdi:chart-bar"
+
+    def __init__(self, coordinator, entry, supplier):
+        super().__init__(coordinator, entry, supplier, "prices_tomorrow", "Prijzen morgen")
+
+    @property
+    def native_value(self) -> float | None:
+        hourly = (self.coordinator.data or {}).get("hourly", [])
+        tomorrow = _tomorrow_str()
+        prices = [
+            h["price"] for h in hourly if h["day"] == tomorrow and h["price"] is not None
+        ]
+        if not prices:
+            return None
+        return sum(prices) / len(prices)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        hourly = (self.coordinator.data or {}).get("hourly", [])
+        tomorrow = _tomorrow_str()
+        prices = [
+            h["price"] for h in hourly if h["day"] == tomorrow and h["price"] is not None
+        ]
+        # `valid: false` voor 14:00 — geen `unavailable` om automation-warnings te vermijden
+        valid = len(prices) >= 24
+        return {
+            "valid": valid,
+            "prices": prices,
+            "raw_tomorrow": _build_hourly_raw(hourly, tomorrow),
+            "raw_tomorrow_epex": _build_hourly_raw(hourly, tomorrow, field="epex"),
+            "average": (sum(prices) / len(prices)) if prices else None,
+            "min": min(prices) if prices else None,
+            "max": max(prices) if prices else None,
+            "supplier": self._supplier,
+        }
+
+
+class PricesTodayQuarterSensor(_BaseSensor):
+    """Native granulariteit (15-min als de API ze levert) — voor fijne charts."""
+
+    _attr_native_unit_of_measurement = UNIT_EUR_PER_KWH
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 4
+    _attr_icon = "mdi:chart-timeline-variant"
+
+    def __init__(self, coordinator, entry, supplier):
+        super().__init__(
+            coordinator, entry, supplier, "prices_today_quarter", "Prijzen vandaag (kwartier)"
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        points = (self.coordinator.data or {}).get("points", [])
+        if not points:
+            return None
+        gran = _granularity_minutes(points)
+        today = _today_str()
+        now = datetime.now()
+        for p in points:
+            ts = p.get("timestamp", "")
+            if not ts.startswith(today):
+                continue
+            try:
+                slot_start = datetime.fromisoformat(ts).replace(tzinfo=None)
+            except ValueError:
+                continue
+            if slot_start <= now < slot_start + timedelta(minutes=gran):
+                return p["breakdown"]["total_eur_per_kwh"]
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        points = (self.coordinator.data or {}).get("points", [])
+        if not points:
+            return None
+        today = _today_str()
+        gran = _granularity_minutes(points)
+        today_points = [p for p in points if p.get("timestamp", "").startswith(today)]
+        prices = [p["breakdown"]["total_eur_per_kwh"] for p in today_points]
+        if not prices:
+            return None
+        raw: list[dict[str, Any]] = []
+        for p in today_points:
+            start = p["timestamp"]
+            end = _end_iso(start, gran)
+            if end is None:
+                continue
+            raw.append(
+                {"start": start, "end": end, "value": p["breakdown"]["total_eur_per_kwh"]}
+            )
+        return {
+            "prices": prices,
+            "raw_today": raw,
+            "granularity_minutes": gran,
+            "average": sum(prices) / len(prices),
+            "min": min(prices),
+            "max": max(prices),
+            "supplier": self._supplier,
+        }
 
 
 # ---------- Live (pull-mode) entities ----------

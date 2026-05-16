@@ -7,7 +7,7 @@ stroomtarieven (EPEX day-ahead, NL) + push-bridge voor je P1/DSMR-meter.
 
 ## Wat krijg je?
 
-**Negen sensors per leverancier:**
+**Twaalf prijssensoren per leverancier:**
 
 | Sensor | Eenheid | Voorbeeld |
 |---|---|---|
@@ -20,6 +20,28 @@ stroomtarieven (EPEX day-ahead, NL) + push-bridge voor je P1/DSMR-meter.
 | `sensor.goedkoopste_blok_gemiddelde` | EUR/kWh | `0.094` |
 | `sensor.volgende_negatieve_prijs` | string | `"2026-04-30 13:00"` |
 | `sensor.tariefniveau_nu` | enum | `very_low / low / medium / high / peak` |
+| `sensor.prijzen_vandaag` | EUR/kWh + `prices[24]` attr | `0.158` |
+| `sensor.prijzen_morgen` | EUR/kWh + `prices[24]` attr | `0.187` of `unknown` |
+| `sensor.prijzen_vandaag_kwartier` | EUR/kWh + `prices[96]` attr | `0.155` |
+
+### Prijsarrays voor dashboards
+
+`prijzen_vandaag` en `prijzen_morgen` exposen de hele dag als attributen — compatibel met ApexCharts-Card, Energy Tariff Card en andere community-cards die de Nordpool/ENTSO-e-conventie volgen:
+
+```yaml
+attributes:
+  prices: [0.18, 0.17, …]        # 24 all-in EUR/kWh
+  raw_today:                       # voor ApexCharts e.d.
+    - start: "2026-05-16T00:00:00+02:00"
+      end:   "2026-05-16T01:00:00+02:00"
+      value: 0.18
+  raw_today_epex: [...]            # kale EPEX (zonder marge/btw/EB)
+  average: 0.21
+  min: 0.09
+  max: 0.46
+```
+
+`prijzen_morgen` is `unknown` tot EPEX day-ahead publiceert (~14:00 CET) — attribuut `valid: true` zodra alle 24 uren binnen zijn. `prijzen_vandaag_kwartier` levert de native granulariteit van de API (15-min op de meeste leveranciers, 60-min als fallback) — `granularity_minutes` attribuut geeft aan welke.
 
 Plus **één service** voor terug-push naar SlimHuys:
 

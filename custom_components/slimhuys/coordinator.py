@@ -58,6 +58,7 @@ class SlimHuysCoordinator(DataUpdateCoordinator):
         return {
             "current": current,
             "hourly": hourly,
+            "points": points,
             "cheapest_block": cheapest,
             "next_negative": negative,
             "supplier": self._supplier,
@@ -67,23 +68,44 @@ class SlimHuysCoordinator(DataUpdateCoordinator):
     @staticmethod
     def _aggregate_hourly(points: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Aggregate 15-min or 60-min points to 24+24 hour-buckets (today + tomorrow)."""
-        buckets: dict[str, dict[int, list[float]]] = {}
+        buckets: dict[str, dict[int, dict[str, Any]]] = {}
         for p in points:
             ts = p.get("timestamp", "")
             if len(ts) < 13:
                 continue
             day = ts[:10]
             hour = int(ts[11:13])
-            buckets.setdefault(day, {}).setdefault(hour, []).append(
-                p["breakdown"]["total_eur_per_kwh"]
+            bucket = buckets.setdefault(day, {}).setdefault(
+                hour, {"prices": [], "epex": [], "start_ts": ts}
             )
+            bucket["prices"].append(p["breakdown"]["total_eur_per_kwh"])
+            epex = p["breakdown"].get("epex_eur_per_kwh")
+            if epex is not None:
+                bucket["epex"].append(epex)
 
         result = []
         for day in sorted(buckets.keys()):
             for hour in range(24):
-                prices = buckets[day].get(hour, [])
-                avg = sum(prices) / len(prices) if prices else None
-                result.append({"day": day, "hour": hour, "price": avg})
+                b = buckets[day].get(hour)
+                if b and b["prices"]:
+                    avg = sum(b["prices"]) / len(b["prices"])
+                    epex_avg = (
+                        sum(b["epex"]) / len(b["epex"]) if b["epex"] else None
+                    )
+                    start_ts = b["start_ts"]
+                else:
+                    avg = None
+                    epex_avg = None
+                    start_ts = None
+                result.append(
+                    {
+                        "day": day,
+                        "hour": hour,
+                        "price": avg,
+                        "epex": epex_avg,
+                        "start_ts": start_ts,
+                    }
+                )
         return result
 
     @staticmethod
